@@ -1,4 +1,19 @@
-#include "apache_cookie.h"
+/* Copyright 2000-2004  The Apache Software Foundation
+**
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**     http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License.
+*/
+
+#define PERL_NO_GET_CONTEXT     /* we want efficiency */
 
 #ifdef WIN32
 
@@ -38,6 +53,7 @@
 
 #undef __attribute__
 #include "mod_perl.h"
+#include "apache_cookie.h"
 
 #ifdef WIN32
 
@@ -81,14 +97,14 @@
 
 typedef ApacheCookie * Apache__Cookie;
 
-static SV *cookie_bless(ApacheCookie *c)
+static SV *cookie_bless(pTHX_ ApacheCookie *c)
 {
     SV *sv = newSV(0); 
     sv_setref_pv(sv, "Apache::Cookie", (void*)c); 
     return sv;
 }
 
-static ApacheCookie *sv_2cookie(SV *sv)
+static ApacheCookie *sv_2cookie(pTHX_ SV *sv)
 {
     if (SvROK(sv) && sv_derived_from(sv, "Apache::Cookie")) { 
 	return (ApacheCookie *)SvIV((SV*)SvRV(sv)); 
@@ -100,7 +116,7 @@ static ApacheCookie *sv_2cookie(SV *sv)
 
 #define cookie_push(c) \
     XPUSHs(sv_2mortal(newSVpv(c->name,0))); \
-    XPUSHs(sv_2mortal(cookie_bless(c)))
+    XPUSHs(sv_2mortal(cookie_bless(aTHX_ c)))
 
 #define ApacheCookie_name(c, val) \
 ApacheCookie_attr(c, "name", val)
@@ -192,7 +208,7 @@ ApacheCookie_parse(sv, string=NULL)
 	c = ApacheCookie_new(r, NULL);
     }
     else {
-	c = sv_2cookie(sv);
+	c = sv_2cookie(aTHX_ sv);
     }
 
     cookies = ApacheCookie_parse(c->r, string);
@@ -207,7 +223,8 @@ ApacheCookie_parse(sv, string=NULL)
 	    ApacheCookie *c = ApacheCookieJarFetch(cookies, i);
 
 	    if (c && c->name) {
-		hv_store(hv, c->name, strlen(c->name), cookie_bless(c), FALSE);
+		hv_store(hv, c->name, strlen(c->name),
+                         cookie_bless(aTHX_ c), FALSE);
 	    }
 	}
         sv = newRV_noinc((SV*)hv); 

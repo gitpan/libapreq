@@ -1,5 +1,19 @@
-#include "apache_request.h"
-#include "patchlevel.h"
+/* Copyright 2000-2004  The Apache Software Foundation
+**
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**     http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License.
+*/
+
+#define PERL_NO_GET_CONTEXT     /* we want efficiency */
 
 #ifdef WIN32
 
@@ -39,6 +53,8 @@
 
 #undef __attribute__
 #include "mod_perl.h"
+#include "apache_request.h"
+#include "patchlevel.h"
 
 #ifdef WIN32
 
@@ -86,10 +102,18 @@ typedef ApacheUpload  * Apache__Upload;
 typedef struct {
     SV *data;
     SV *sub;
+    PerlInterpreter *perl;
 } UploadHook;
 
 #define XsUploadHook       ((UploadHook *)RETVAL->hook_data)
 #define XsUploadHookNew(p) (void *)ap_pcalloc(p, sizeof(UploadHook))
+
+#ifdef USE_ITHREADS
+#define XsUploadHookNew_perl XsUploadHook->perl = aTHX
+#else
+#define XsUploadHookNew_perl 
+#endif
+
 #define XsUploadHookSet(slot, sv) \
      if (RETVAL->hook_data) { \
          if (XsUploadHook->slot) { \
@@ -98,6 +122,7 @@ typedef struct {
      } \
      else { \
          RETVAL->hook_data = XsUploadHookNew(r->pool); \
+         XsUploadHookNew_perl; \
          ap_register_cleanup(r->pool, (void*)XsUploadHook, \
                              upload_hook_cleanup, ap_null_cleanup); \
      } \
@@ -134,7 +159,7 @@ typedef FILE * ApreqInputStream;
 
 static char *r_keys[] = { "_r", "r", NULL };
 
-static SV *r_key_sv(SV *in)
+static SV *r_key_sv(pTHX_ SV *in)
 {
     SV *sv;
     int i;
@@ -152,7 +177,7 @@ static SV *r_key_sv(SV *in)
     return Nullsv;
 }
 
-static ApacheRequest *sv_2apreq(SV *sv)
+static ApacheRequest *sv_2apreq(pTHX_ SV *sv)
 {
     if (SvROK(sv) && sv_derived_from(sv, "Apache::Request")) { 
 	SV *obj = sv;
@@ -160,7 +185,7 @@ static ApacheRequest *sv_2apreq(SV *sv)
 	switch (SvTYPE(SvRV(obj))) {
 	case SVt_PVHV :
             do {
-                obj = r_key_sv(obj);
+                obj = r_key_sv(aTHX_ obj);
             } while (SvROK(obj) && (SvTYPE(SvRV(obj)) == SVt_PVHV));
 	    break;
 	default:
@@ -173,7 +198,7 @@ static ApacheRequest *sv_2apreq(SV *sv)
     }
 } 
 
-static SV *upload_bless(ApacheUpload *upload) 
+static SV *upload_bless(pTHX_ ApacheUpload *upload) 
 { 
     SV *sv = newSV(0);  
     sv_setref_pv(sv, "Apache::Upload", (void*)upload);  
@@ -183,11 +208,10 @@ static SV *upload_bless(ApacheUpload *upload)
 static int upload_hook(void *ptr, char *buf, int len, ApacheUpload *upload)
 {
     UploadHook *hook = (UploadHook *)ptr;
-
-#ifdef dTHX
-    dTHX;  /* crude 5005thread support */
+#ifdef USE_ITHREADS
+    dTHXa(hook->perl);
 #endif
-
+    
     if (!(upload->fp || ApacheRequest_tmpfile(upload->req, upload)))
         return -1; /* error */
 
@@ -229,7 +253,10 @@ static int upload_hook(void *ptr, char *buf, int len, ApacheUpload *upload)
 static void upload_hook_cleanup(void *ptr)
 {
     UploadHook *hook = (UploadHook *)ptr;
-
+#ifdef USE_ITHREADS
+    dTHXa(hook->perl);
+#endif
+    
     if (hook->sub) {
         SvREFCNT_dec(hook->sub);
         hook->sub = Nullsv;
@@ -243,14 +270,14 @@ static void upload_hook_cleanup(void *ptr)
 #define upload_push(upload) \
     XPUSHs(sv_2mortal(upload_bless(upload))) 
 
-static void apreq_add_magic(SV *sv, SV *obj, ApacheRequest *req)
+static void apreq_add_magic(pTHX_ SV *sv, SV *obj, ApacheRequest *req)
 {
     sv_magic(SvRV(sv), obj, '~', "dummy", -1);
     SvMAGIC(SvRV(sv))->mg_ptr = (char *)req->r;
 }
 
 #ifdef CGI_COMPAT
-static void register_uploads (ApacheRequest *req) {
+static void register_uploads (pTHX_ ApacheRequest *req) {
     ApacheUpload *upload;
 
     for (upload = req->upload; upload; upload = upload->next) {
@@ -287,7 +314,7 @@ ApacheRequest_new(class, r, ...)
     class = class; /* -Wall */ 
     robj = ST(1);
     RETVAL = ApacheRequest_new(r);
-    register_uploads(RETVAL);
+    register_uploads(aTHX_ RETVAL);
 
     for (i=2; i<items; i+=2) {
         char *key = SvPV(ST(i),na);
@@ -333,7 +360,7 @@ ApacheRequest_new(class, r, ...)
     RETVAL
 
     CLEANUP:
-    apreq_add_magic(ST(0), robj, RETVAL);
+    apreq_add_magic(aTHX_ ST(0), robj, RETVAL);
 
 char *
 ApacheRequest_script_name(req)
@@ -498,11 +525,11 @@ ApacheRequest_upload(req, sv=Nullsv)
 	if (!uptr)
             XSRETURN_UNDEF;
 
-	upload_push(uptr);
+	upload_push(aTHX_ uptr);
     }
     else {
 	for (uptr = req->upload; uptr; uptr = uptr->next)
-	    upload_push(uptr);
+	    upload_push(aTHX_ uptr);
     }
 
 char *
