@@ -222,7 +222,7 @@ static int upload_hook(void *ptr, char *buf, int len, ApacheUpload *upload)
     if (SvTRUE(ERRSV))
         return -1;
 
-    return PerlIO_write(PerlIO_importFILE(upload->fp,0), buf, len);
+    return fwrite(buf, 1, len, upload->fp);
 }
 
 static void upload_hook_cleanup(void *ptr)
@@ -465,12 +465,14 @@ ApacheRequest_upload(req, sv=Nullsv)
 
 	if (name) {
 	    uptr = ApacheUpload_find(req->upload, name);
-	    if (!uptr)
-		XSRETURN_UNDEF;
 	}
 	else {
 	    uptr = req->upload;
 	}
+
+	if (!uptr)
+            XSRETURN_UNDEF;
+
 	upload_push(uptr);
     }
     else {
@@ -491,28 +493,34 @@ ApreqInputStream
 ApacheUpload_fh(upload)
     Apache::Upload upload
 
+    PREINIT:
+    int fd;
+    FILE *fp;
+
     CODE:
-    if (  ( RETVAL = PerlIO_importFILE(ApacheUpload_fh(upload),0) ) == NULL  )
-	    XSRETURN_UNDEF;
+    fp = ApacheUpload_fh(upload);
+    if (fp == NULL)
+        XSRETURN_UNDEF;
+
+    fd = PerlLIO_dup(fileno(fp));
+
+    /* XXX: user should check errno on undef returns */
+
+    if (fd < 0) 
+        XSRETURN_UNDEF;
+
+    if ( !(RETVAL = PerlIO_fdopen(fd, "r")) )
+	XSRETURN_UNDEF;
 
     OUTPUT:
     RETVAL
 
     CLEANUP:
+    /* XXX: there may be a leak/segfault in here somewhere */
     if (ST(0) != &PL_sv_undef) {
 	IO *io = GvIOn((GV*)SvRV(ST(0)));
-	int fd = PerlIO_fileno(IoIFP(io));
-	PerlIO *fp;
-
-	fd = PerlLIO_dup(fd);
-	if (!(fp = PerlIO_fdopen(fd, "r"))) { 
-	    PerlLIO_close(fd);
-	    croak("fdopen failed!");
-	}
 	if (upload->req->parsed)
-	    PerlIO_seek(fp, 0, 0);
-
-	IoIFP(io) = fp;  	
+	    PerlIO_seek(IoIFP(io), 0, 0);
     }
 
 long
