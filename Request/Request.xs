@@ -1,4 +1,5 @@
 #include "apache_request.h"
+#include "patchlevel.h"
 
 #ifdef WIN32
 
@@ -342,6 +343,30 @@ int
 ApacheRequest_parse(req)
     Apache::Request req
 
+
+Apache::Table
+ApacheRequest_query_params(req)
+    Apache::Request req
+
+    PREINIT:
+    table *parms;
+
+    CODE:
+    parms = ApacheRequest_query_params(req, req->r->pool);
+    ST(0) = mod_perl_tie_table(parms);
+
+Apache::Table
+ApacheRequest_post_params(req)
+    Apache::Request req
+
+    PREINIT:
+    table *parms;
+
+    CODE:
+    parms = ApacheRequest_post_params(req, req->r->pool);
+    ST(0) = mod_perl_tie_table(parms);
+
+
 void
 ApacheRequest_parms(req, parms=NULL)
     Apache::Request req
@@ -501,9 +526,8 @@ ApacheUpload_fh(upload)
     fp = ApacheUpload_fh(upload);
     if (fp == NULL)
         XSRETURN_UNDEF;
-
+#if PERL_REVISION == 5 && PERL_VERSION > 7
     fd = PerlLIO_dup(fileno(fp));
-
     /* XXX: user should check errno on undef returns */
 
     if (fd < 0) 
@@ -511,17 +535,39 @@ ApacheUpload_fh(upload)
 
     if ( !(RETVAL = PerlIO_fdopen(fd, "r")) )
 	XSRETURN_UNDEF;
+#else
+    if (  ( RETVAL = PerlIO_importFILE(fp,0) ) == NULL  )
+	    XSRETURN_UNDEF;
+#endif
 
     OUTPUT:
     RETVAL
 
     CLEANUP:
     /* XXX: there may be a leak/segfault in here somewhere */
+#if PERL_REVISION == 5 && PERL_VERSION > 7
     if (ST(0) != &PL_sv_undef) {
 	IO *io = GvIOn((GV*)SvRV(ST(0)));
 	if (upload->req->parsed)
 	    PerlIO_seek(IoIFP(io), 0, 0);
     }
+#else
+   if (ST(0) != &PL_sv_undef) {
+	IO *io = GvIOn((GV*)SvRV(ST(0)));
+	int fd = PerlIO_fileno(IoIFP(io));
+	PerlIO *fp;
+
+	fd = PerlLIO_dup(fd);
+	if (!(fp = PerlIO_fdopen(fd, "r"))) { 
+	    PerlLIO_close(fd);
+	    croak("fdopen failed!");
+	}
+	if (upload->req->parsed)
+	    PerlIO_seek(fp, 0, 0);
+
+	IoIFP(io) = fp;  	
+    }
+#endif
 
 long
 ApacheUpload_size(upload)

@@ -3,31 +3,54 @@ use strict;
 use FindBin;
 use 5.005;
 
-my $Is_Win32 = ($^O eq "MSWin32") || $ENV{WIN32_TEST};
+use File::Path qw(mkpath);
+use lib qw(Apache-Test/lib);
+
+use constant HAS_APACHE_TEST => eval {require Apache::Test};
+
+use constant WIN32 => ($^O eq "MSWin32") || $ENV{WIN32_TEST};
+if (WIN32) {
+    win32_setup() unless ($ENV{APACHE} || grep /^-httpd$/, @ARGV);
+}
+
+# enable 'make test|clean'
+if (HAS_APACHE_TEST) {
+    require Apache::TestMM;
+    Apache::TestMM->import(qw(test clean));
+}
+BEGIN {
+    unless (eval {require mod_perl}) {
+        die "Please install mod_perl: 1.25 < version < 1.99\n($@)";
+    }
+    if ($mod_perl::VERSION < 1.2402) {
+        die "Please upgrade mod_perl to 1.24_02 or greater";
+    }
+    elsif ($mod_perl::VERSION > 1.98) {
+        die "mod_perl 1.x ( < 1.99) is required";
+    }
+}
 
 my $conf_data = join '', <DATA>;
 $conf_data =~ s|(blib/arch)|$FindBin::Bin/$1|;
 
-if (not $Is_Win32) {
-  eval {
-    require Apache::test;
-    local $SIG{ALRM} = sub { die "alarm\n" };
-    alarm 60;
-    my %params = Apache::test->get_test_params();
-    alarm 0;
-    
-    Apache::test->write_httpd_conf(%params, include => $conf_data);
-    *MY::test = sub {Apache::test->MM_test(%params)};
-  };
-  print "\n[timeout] skipping test setup...\n" if $@ eq "alarm\n";
-}
-else {
-  write_win32_conf();
-}
+eval {
+  require Apache::Test;
+  # accept the configs from command line
+  Apache::TestMM::filter_args();
+  Apache::TestMM::generate_script('t/TEST');
+#    local $SIG{ALRM} = sub { die "alarm\n" };
+#    alarm 60;
+#    my %params = Apache::test->get_test_params();
+#    alarm 0;
+
+#    Apache::test->write_httpd_conf(%params, include => $conf_data);
+#    *MY::test = sub {Apache::test->MM_test(%params)};
+};
+print "\nskipping test setup...$@" if $@;
 
 # prerequisites
 my %require = (
-    "Apache::test" => "", # any version will do
+    "Apache::Test" => "1.03",
 );
 
 my $myVERSION = MM->parse_version('Request/Request.pm');
@@ -35,23 +58,18 @@ $myVERSION =~ s/(\d\d)(\d\d)$/$1_$2/;
 my $lib;
 check_compat();
 
-if ($Is_Win32) {
-  use mod_perl;
-  unless ($mod_perl::VERSION >= 1.2402) {
-    die "Please upgrade mod_perl to 1.24_02 or greater";
-  }
-  use Cwd;
-  my $cwd = cwd;
+if (WIN32) {
+  require Cwd;
+  my $cwd = Cwd::cwd();
   $cwd =~ s#\\#/#g;
   my $root = "$cwd/blib/arch/auto";
-  use File::Path qw(mkpath);
   mkpath $root, 1, 0755 unless -d $root;
   mkpath "$root/libapreq", 1, 0755 unless -d "$root/libapreq";
   $lib = "$root/libapreq/libapreq.lib";
   open (FILE, ">>$lib") 
     or die "Cannot touch $lib: $!\n";
   close FILE;  
-  use Apache::MyConfig;
+  require Apache::MyConfig;
   $ENV{APREQ_LIB} = "$root/libapreq";
   $ENV{AP_INC} = $Apache::MyConfig::Setup{APACHE_INC};
   $ENV{MP_INC} = $Apache::MyConfig::Setup{MODPERL_INC};
@@ -78,10 +96,10 @@ WriteMakefile(
 	      );
 
 sub clean_files {
-    return [qw( t/httpd.conf t/httpd.loc t/error_log t/httpd )];
+    return [qw( t/TEST )];
 }
 
-if ($Is_Win32 and -e $lib) {
+if (WIN32 and -e $lib) {
   unlink $lib or die "Cannot unlink $lib: $!\n";
 }
 
@@ -115,63 +133,34 @@ cvs_tag :
 EOF
 }
 
-sub write_win32_conf {
-  use Cwd;
-  use Config;
-  my $dll;
-  (my $libperl = $Config{libperl}) =~ s!(.*)\.lib!$Config{bin}/$1.dll!;
-  $libperl =~ s!\\!/!g;
-  $libperl = undef unless -e $libperl;
+sub win32_setup {
+  require Win32;
+  my $apache;
  SEARCH: {
-    for my $drive ('C'..'G') {
-      for my $p ("program files/apache", "apache") { 
-	last SEARCH if -e ($dll = "$drive:/$p/modules/mod_perl.so");
+    for my $drive ('C' .. 'Z') {
+      for my $p ('Apache', 'Program Files/Apache', 
+		 'Program Files/Apache Group/Apache') {
+	if (-e "$drive:/$p/Apache.exe") {
+	  $apache = "$drive:/$p/Apache.exe";
+	  last SEARCH;
+	}
       }
     }
   }
-  unless (-e $dll) {
+  unless (-e $apache) {
     require ExtUtils::MakeMaker;
     ExtUtils::MakeMaker->import('prompt');
-    $dll = prompt("Where is your mod_perl.so located ?", $dll);
+    $apache = prompt("Where is your apache.exe located?", $apache);
   }
   
-  die "Can't find mod_perl.so!" unless -e $dll;
-
-  (my $mime = $dll) =~ s!modules/mod_perl.so!conf/mime.types!;
-  unless (-e $mime) {
-    require ExtUtils::MakeMaker;
-    ExtUtils::MakeMaker->import('prompt');
-    $dll = prompt("Where is your mime.types located ?", $mime);
-  }
-  die "Can't find mime.types!" unless -e $mime;
+  die "Can't find Apache.exe!" unless -e $apache;
   
-  my $cwd = cwd;
-  open(ORIG, 't/httpd.conf.win32') or die "Cannot open t/httpd.conf.win32: $!";
-  open(CONF, '>t/httpd.conf') or die "Cannot open t/httpd.conf: $!";
-  while (<ORIG>) {
-    s/CWD/$cwd/g;
-    s/MIME/"$mime"/;
-    if ($libperl) {
-      s/(LoadModule perl_module )DLL/LoadFile "$libperl"\n$1"$dll"/;
-    }
-    else {
-      s/DLL/$dll/;
-    }
-    print CONF $_;
-  }
-  close ORIG;
-  print CONF $conf_data;
-  close CONF;
-  *MY::test = sub {
-return << 'EOF';
-test:	run_tests
-
-run_tests:
-        $(FULLPERL) -I"blib/lib" -I"blib/arch" t/TEST.win32
-
-EOF
-};
-
+  my $vers = qx{"$apache" -v};
+  die qq{"$apache" does not appear to be version 1.3}
+    unless $vers =~ m!Apache/1.3!;
+  $apache = Win32::GetShortPathName($apache);
+  $apache =~ s!\\!/!g;
+  push @ARGV, '-httpd', $apache;
 }
 
 __DATA__

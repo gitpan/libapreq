@@ -2,6 +2,48 @@ Revision history for libapreq
 
 =over 4
 
+=item 1.2 - June 19, 2003
+
+libapreq-1.2 released.
+
+=item 1.16 - June 19, 2003
+
+Updated INSTALL & README documents to explain how to configure the tests.
+Apache::Test v1.03 is now a prerequisite for libapreq.
+
+=item 1.15 - June 13, 2003
+
+Experimental support for SFIO is withdrawn.
+
+=item 1.14 - April 30, 2003
+
+Add documentation for subclassing Apache::Request. [Steve Hay]
+
+=item 1.13 - April 18, 2003
+
+Sync test suite uris with latest Apache::Test [Stas]
+
+Patch mfd parser's Content-Disposition header to do case-insensitive
+matches on "name" & "filename" keywords.  This feature allows uploads
+from Nokia Series 60 phones to work as expected. [Oskari 'Okko' Ojala]
+
+Patch Request.xs to revert to using pre-1.1 $upload->fh code for
+pre-5.8 perls.  This patch may get backed out prior to 1.2's release,
+unless it is known to resolve problems (zombies?) reported to occur 
+with libapreq-1.1 uploads and pre-5.8 perls. [Joe]
+
+=item 1.12 - February 27, 2003
+
+do a better mod_perl version checking, including the test for mod_perl
+2.0. [Stas]
+
+Applied IKEBE Tomohiro's patch for handling %uXXXX strings.
+
+=item 1.11 - February 27, 2003
+
+Add req->nargs to C API to distinguish between query string and 
+request body params.
+
 =item 1.05 - January 5, 2003
 
 Include patch and supporting documentation for OS X [David Wheeler].

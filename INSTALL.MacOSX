@@ -7,7 +7,7 @@ separately. Here's how to do it.
 % cd libapreq-1.x
 % sh BUILD.sh
 
-Unpack the libapreq tarball, change into the source code diretory, and then
+Unpack the libapreq tarball, change into the source code directory, and then
 run the BUILD.sh script. This prepares the libapreq sources to build the C
 library. Note that running BUILD.sh is actually optional if the libapreq
 sources are freshly unpacked.
@@ -17,16 +17,19 @@ sources are freshly unpacked.
 % sudo make install
 
 We need to tell configure where to find the apache includes directory. The
-default Apple install of Apache puts these files in /usr/includ/httpd. If
+default Apple install of Apache puts these files in /usr/include/httpd. If
 you've compiled and installed your own Apache, you'll need to point to the
 directory into which you have installed the include files, such as
 /usr/local/apache/include. Once configure is done doing its thing, run "make"
 and then "sudo make install" to install the C library.
 
 Next, the normal Perl build of libapreq should work. Note that you'll need
-libwwwperl and URI installed in order to run make test.
+Apache::TestMM, libwwwperl, and URI installed in order to run "make test".
+It's also a good idea to use the "-apxs" argument to Makefile.PL so that
+"make test" knows where to find and start your Apache server. This is
+especially true if you've compiled and isntalled your own Apache.
 
-% perl Makefile.PL
+% perl Makefile.PL -apxs /usr/sbin/apxs
 % make
 % make test
 % sudo make install

@@ -6,7 +6,7 @@ use Apache::Table ();
 
 {
     no strict;
-    $VERSION = '1.1';
+    $VERSION = '1.2';
     __PACKAGE__->mod_perl::boot($VERSION);
 }
 
@@ -158,8 +158,6 @@ This problem is solved in the libapreq-2.0 library.
 =item RFC 2964-5 are not fully implemented.
 
 =item C<value> should also accept a hash ref as argument.
-
-=item Reportedly does not run (linking problem?) on Apple's OSX
 
 =back
 

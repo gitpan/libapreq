@@ -6,7 +6,7 @@ use Apache::Table ();
 
 {
     no strict;
-    $VERSION = '1.1';
+    $VERSION = '1.2';
     @ISA = qw(Apache);
     __PACKAGE__->mod_perl::boot($VERSION);
 }
@@ -239,6 +239,66 @@ object associated with the given name:
     my $upload = $apr->upload($name);
 
 =back
+
+=head1 SUBCLASSING Apache::Request
+
+The Apache::Request class cannot be subclassed directly because its constructor
+method does not bless new objects into the invocant class. Instead, it always
+blesses them into the Apache::Request class itself.
+
+However, there are two main ways around this.
+
+One way is to have a constructor method in your subclass that invokes the
+superclass constructor method and then re-blesses the new object into itself
+before returning it:
+
+	package MySubClass;
+	use Apache::Request;
+	our @ISA = qw(Apache::Request);
+	sub new {
+		my($class, @args) = @_;
+		return bless $class->SUPER::new(@args), $class;
+	}
+
+The other way is to aggregate and delegate: store an Apache::Request object in
+each instance of your subclass, and delegate any Apache::Request methods that
+you are not overriding to it:
+
+	package MySubClass;
+	use Apache::Request;
+	sub new {
+		my($class, @args) = @_;
+		return bless { r => Apache::Request->new(@args) }, $class;
+	}
+	sub AUTOLOAD {
+		my $proto = shift;
+		return unless ref $proto;
+		our $AUTOLOAD;
+		my $name = $AUTOLOAD;
+		$name =~ s/^.*:://;
+		return $proto->{r}->$name(@_);
+	}
+
+A fancier AUTOLOAD() subroutine could be written to handle class methods too if
+required, but we leave that as an exercise for the reader because in fact the
+Apache::Request class provides some magic that makes the aggregate/delegate
+solution much easier.
+
+If the instances of your subclass are hash references then you can actually
+inherit from Apache::Request as long as the Apache::Request object is stored in
+an attribute called "r" or "_r". (The Apache::Request class effectively does the
+delegation for you automagically, as long as it knows where to find the
+Apache::Request object to delegate to.)
+
+Thus, the second example above can be simplified as:
+
+	package MySubClass;
+	use Apache::Request;
+	our @ISA = qw(Apache::Request);
+	sub new {
+		my($class, @args) = @_;
+		return bless { r => Apache::Request->new(@args) }, $class;
+	}
 
 =head1 Apache::Upload METHODS
 
