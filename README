@@ -1,4 +1,5 @@
 libapreq - Generic Apache Request Library
+http://httpd.apache.org/apreq/
 
 This package contains modules for manipulating client request data via
 the Apache API with Perl and C.  Functionality includes:
@@ -20,6 +21,21 @@ originally implemented as a pure Perl Apache::Request module.
 The C implementation has a similar look-and-feel, including structures
 modeled from Lincoln's Perl design.
 
+IMPORTANT NOTE: To install the Perl modules, your mod_perl installation
+MUST includes support for Apache::Table.  This means that mod_perl should
+be built using the EVERYTHING=1, or at minimum PERL_TABLE_API=1.  If you
+see errors like this (during compilation of libapreq)
+
+        Error: 'Apache::Table' not in typemap in Request.xs,
+
+your mod_perl must be rebuilt to include Apache::Table support.
+
+The Perl interface also includes experimental support for Perl+sfio builds:
+
+        % perl Makefile.PL DEFINE=-DSFIO
+        % make
+        % make install
+
 Portions of the C code are based on examples from:
      Writing Apache Modules with Perl and C,
      Lincoln Stein & Doug MacEachern,
@@ -27,14 +43,14 @@ Portions of the C code are based on examples from:
      ISBN 1-56592-567-X. 
      http://www.modperl.com/
 
-The development of this package is sponsored by:
+Development of this package, version 0.32 was sponsored by:
+Covalent Technologies Inc. http://www.covalent.net/
+
+Development of this package, versions 0.01-0.31 was sponsored by:
 Critical Path Inc. http://www.cp.net/ 
 
 Support for the Perl interface is available from:
 modperl@apache.org
 
 Support for the C interface is available from:
-apache-modules@covalent.net
-
-Enjoy,
-Doug MacEachern (dougm@cp.net)
+apreq-dev@httpd.apache.org

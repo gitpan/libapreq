@@ -3,6 +3,7 @@ use Apache::Request ();
 
 my $r = shift;
 my $apr = Apache::Request->new($r);
+$apr->no_cache(1);
 $apr->send_http_header('text/html');
 
 my $title = "File Upload Example";
@@ -35,6 +36,11 @@ if (my $upload = $apr->upload) {
     my $fh = $upload->fh;
     my $size = $upload->size;
 
+    unless ($filename) {
+	print "no file specified";
+	return;
+    }
+
     print <<EOF;
 <hr>
 <h2>$name</h2>
@@ -62,3 +68,4 @@ EOF
 	print "No statistics selected.\n";
     }
 }
+print "</BODY></HTML>";

@@ -6,24 +6,22 @@ use Apache::Table ();
 
 {
     no strict;
-    $VERSION = '0.31';
+    $VERSION = '1.0';
     @ISA = qw(Apache);
     __PACKAGE__->mod_perl::boot($VERSION);
 }
 
 #just prototype methods here, moving to xs later
-sub param {
-    my $self = shift;
-    my($name, $value) = @_;
-    my $tab = $self->parms;
-    unless ($name) {
-	my %seen;
-	return wantarray ? grep { !$seen{$_}++ } keys %$tab : $tab;
+
+sub instance {
+    my $class = shift;
+    my $r = shift;
+    if (my $apreq = $r->pnotes('apreq')) {
+        return $apreq;
     }
-    if (defined $value) {
-	$tab->set($name, $value);
-    }
-    return wantarray ? ($tab->get($name)) : scalar $tab->get($name);
+    my $new_req = $class->new($r, @_);
+    $r->pnotes('apreq', $new_req);
+    return $new_req;
 }
 
 1;
@@ -43,13 +41,32 @@ Apache::Request - Methods for dealing with client request data
 I<Apache::Request> is a subclass of the I<Apache> class, which adds methods
 for parsing B<GET> requests and B<POST> requests where I<Content-type>
 is one of I<application/x-www-form-urlencoded> or 
-I<multipart/form-data>.
+I<multipart/form-data>. See the libapreq(3) manpage for more details.
 
 =head1 Apache::Request METHODS
 
+The interface is designed to mimic CGI.pm 's routines for parsing
+query parameters. The main differences are 
+
 =over 4
 
-=item new
+=item * C<Apache::Request::new> takes an Apache object as (second) argument.
+
+
+=item * The query parameters are stored as Apache::Table objects,
+and are therefore parsed using case-insensitive keys.
+
+
+=item * C<-attr =E<gt> $val> -type arguments are not supported.
+
+
+=item * The query string is always parsed, even for POST requests.
+
+=back
+
+=over 4
+
+=head2 new
 
 Create a new I<Apache::Request> object with an I<Apache> request_rec object:
 
@@ -63,8 +80,8 @@ The following attributes are optional:
 
 =item POST_MAX
 
-Limit the size of POST data.  I<Apache::Request::parse> will return an
-error code if the size is exceeded:
+Limit the size of POST data (in bytes).  I<Apache::Request::parse> will 
+return an error code if the size is exceeded:
 
  my $apr = Apache::Request->new($r, POST_MAX => 1024);
  my $status = $apr->parse;
@@ -89,9 +106,68 @@ error code if a file upload is attempted:
      return $status;
  }
 
+=item TEMP_DIR
+
+Sets the directory where upload files are spooled.  On a *nix-like
+that supports link(2), the TEMP_DIR should be located on the same
+file system as the final destination file:
+
+ my $apr = Apache::Request->new($r, TEMP_DIR => "/home/httpd/tmp");
+ my $upload = $apr->upload('file');
+ $upload->link("/home/user/myfile") || warn "link failed: $!";
+
+=item HOOK_DATA
+
+Extra configuration info passed to an upload hook.
+See the description for the next item, I<UPLOAD_HOOK>.
+
+=item UPLOAD_HOOK
+
+Sets up a callback to run whenever file upload data is read. This
+can be used to provide an upload progress meter during file uploads.
+Apache will automatically continue writing the original data to
+$upload->fh after the hook exits.
+
+ my $transparent_hook = sub {
+   my ($upload, $buf, $len, $hook_data) = @_;
+   warn "$hook_data: got $len bytes for " . $upload->name;
+ };
+
+ my $apr = Apache::Request->new($r, 
+                                HOOK_DATA => "Note",
+                                UPLOAD_HOOK => $transparent_hook,
+                               );
+ $apr->parse;
+
 =back
 
-=item parse
+=head2 instance
+
+The instance() class method allows Apache::Request to be a singleton.
+This means that whenever you call Apache::Request->instance() within a
+single request you always get the same Apache::Request object back.
+This solves the problem with creating the Apache::Request object twice
+within the same request - the symptoms being that the second
+Apache::Request object will not contain the form parameters because
+they have already been read and parsed.
+
+  my $apr = Apache::Request->instance($r, DISABLE_UPLOADS => 1);
+
+Note that C<instance()> call will take the same parameters as the above
+call to C<new()>, however the parameters will only have an effect the
+first time C<instance()> is called within a single request. Extra
+parameters will be ignored on subsequent calls to C<instance()> within
+the same request.
+
+Subrequests receive a new Apache::Request object when they call
+instance() - the parent request's Apache::Request object is not copied
+into the subrequest.
+
+Also note that it is unwise to use the C<parse()> method when using
+C<instance()> because you may end up trying to call it twice, and
+detecting errors where there are none.
+
+=head2 parse
 
 The I<parse> method does the actual work of parsing the request.
 It is called for you by the accessor methods, so it is not required but
@@ -107,19 +183,47 @@ occur:
 	return $status; 
     } 
 
-=item param
+=head2 param
 
-Get or set request parameters:
+Get or set request parameters (using case-insensitive keys) by
+mimicing the OO interface of C<CGI::param>.  Unlike the CGI.pm version,
+Apache::Request's param method is I<very> fast- it's now quicker than even
+mod_perl's native Apache->args method.  However, CGI.pm's
+C<-attr =E<gt> $val> type arguments are not supported.
+
+    # similar to CGI.pm
 
     my $value = $apr->param('foo');
     my @values = $apr->param('foo');
     my @params = $apr->param;
+
+    # the following differ slightly from CGI.pm
+
+    # assigns multiple values to 'foo'
     $apr->param('foo' => [qw(one two three)]);
 
-=item upload
+    # returns ref to underlying apache table object
+    my $table = $apr->param; # identical to $apr->parms - see below
+
+=head2 parms
+
+Get or set the underlying apache parameter table of the I<Apache::Request>
+object.  When invoked without arguments, C<parms> returns a reference
+to an I<Apache::Table> object that is tied to the Apache::Request
+object's parameter table.  If called with an Apache::Table reference
+as as argument, the Apache::Request object's parameter table is
+replaced by the argument's table.
+
+   # $apache_table references an Apache::Table object
+   $apr->parms($apache_table); # sets $apr's parameter table
+
+   # returns ref to Apache::Table object provided by $apache_table
+   my $table = $apr->parms;
+
+=head2 upload
 
 Returns a single I<Apache::Upload> object in a scalar context or
-all I<Apache::Upload> objects in an array context: 
+all I<Apache::Upload> objects in a list context: 
 
     my $upload = $apr->upload;
     my $fh = $upload->fh;
@@ -140,19 +244,19 @@ object associated with the given name:
 
 =over 4
 
-=item name
+=head2 name
 
 The name of the filefield parameter:
 
     my $name = $upload->name;
 
-=item filename
+=head2 filename
 
 The filename of the uploaded file:
 
     my $filename = $upload->filename;
 
-=item fh
+=head2 fh
 
 The filehandle pointing to the uploaded file:
 
@@ -161,13 +265,13 @@ The filehandle pointing to the uploaded file:
 	...
     }
 
-=item size
+=head2 size
 
 The size of the file in bytes:
 
     my $size = $upload->size;
 
-=item info
+=head2 info
 
 The additional header information for the uploaded file.
 Returns a hash reference tied to the I<Apache::Table> class.
@@ -181,7 +285,7 @@ a given header rather than a hash reference.  Examples:
 
     my $val = $upload->info("Content-type");
 
-=item type
+=head2 type
 
 Returns the I<Content-Type> for the given I<Apache::Upload> object:
 
@@ -189,10 +293,11 @@ Returns the I<Content-Type> for the given I<Apache::Upload> object:
     #same as
     my $type = $upload->info("Content-Type");
 
-=item next
+=head2 next
 
-As an alternative to using the I<Apache::Request> I<upload> method in
-an array context:
+Upload objects are implemented as a linked list by libapreq; the
+I<next> method provides an alternative to using the I<Apache::Request>
+I<upload> method in a list context:
 
     for (my $upload = $apr->upload; $upload; $upload = $upload->next) {
 	...
@@ -204,7 +309,29 @@ an array context:
 	...
     }
 
+=head2 tempname
+
+Provides the name of the spool file. This method is reserved for
+debugging purposes, and is possibly subject to change in a future
+version of Apache::Request.
+
+=head2 link
+
+To avoid recopying the spool file on a *nix-like system,
+I<link> will create a hard link to it:
+
+  my $upload = $apr->upload('file');
+  $upload->link("/path/to/newfile") or
+      die sprintf "link from '%s' failed: $!", $upload->tempname;
+
+Typically the new name must lie on the same file system as the
+spool file. Check your system's link(2) manpage for details.
+
 =back
+
+=head1 SEE ALSO
+
+libapreq(3), Apache::Table(3)
 
 =head1 CREDITS
 
@@ -212,4 +339,4 @@ This interface is based on the original pure Perl version by Lincoln Stein.
 
 =head1 AUTHOR
 
-Doug MacEachern
+Doug MacEachern, updated for v1.0 by Joe Schaefer

@@ -1,62 +1,64 @@
 /* ====================================================================
- * Copyright (c) 1995-1999 The Apache Group.  All rights reserved.
+ * The Apache Software License, Version 1.1
+ *
+ * Copyright (c) 2000 The Apache Software Foundation.  All rights
+ * reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer. 
+ *    notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in
  *    the documentation and/or other materials provided with the
  *    distribution.
  *
- * 3. All advertising materials mentioning features or use of this
- *    software must display the following acknowledgment:
- *    "This product includes software developed by the Apache Group
- *    for use in the Apache HTTP server project (http://www.apache.org/)."
+ * 3. The end-user documentation included with the redistribution,
+ *    if any, must include the following acknowledgment:
+ *       "This product includes software developed by the
+ *        Apache Software Foundation (http://www.apache.org/)."
+ *    Alternately, this acknowledgment may appear in the software itself,
+ *    if and wherever such third-party acknowledgments normally appear.
  *
- * 4. The names "Apache Server" and "Apache Group" must not be used to
- *    endorse or promote products derived from this software without
- *    prior written permission. For written permission, please contact
- *    apache@apache.org.
+ * 4. The names "Apache" and "Apache Software Foundation" must
+ *    not be used to endorse or promote products derived from this
+ *    software without prior written permission. For written
+ *    permission, please contact apache@apache.org.
  *
- * 5. Products derived from this software may not be called "Apache"
- *    nor may "Apache" appear in their names without prior written
- *    permission of the Apache Group.
+ * 5. Products derived from this software may not be called "Apache",
+ *    nor may "Apache" appear in their name, without prior written
+ *    permission of the Apache Software Foundation.
  *
- * 6. Redistributions of any form whatsoever must retain the following
- *    acknowledgment:
- *    "This product includes software developed by the Apache Group
- *    for use in the Apache HTTP server project (http://www.apache.org/)."
- *
- * THIS SOFTWARE IS PROVIDED BY THE APACHE GROUP ``AS IS'' AND ANY
- * EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE APACHE GROUP OR
+ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED.  IN NO EVENT SHALL THE APACHE SOFTWARE FOUNDATION OR
  * ITS CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
- * OF THE POSSIBILITY OF SUCH DAMAGE.
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+ * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+ * OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
- * individuals on behalf of the Apache Group and was originally based
- * on public domain software written at the National Center for
- * Supercomputing Applications, University of Illinois, Urbana-Champaign.
- * For more information on the Apache Group and the Apache HTTP server
- * project, please see <http://www.apache.org/>.
+ * individuals on behalf of the Apache Software Foundation.  For more
+ * information on the Apache Software Foundation, please see
+ * <http://www.apache.org/>.
  *
+ * Portions of this software are based upon public domain software
+ * originally written at the National Center for Supercomputing Applications,
+ * University of Illinois, Urbana-Champaign.
  */
 
 #include "apache_request.h"
-#include "multipart_buffer.h"
+#include "apache_multipart_buffer.h"
+int fill_buffer(multipart_buffer *self); /* needed for mozilla hack */
 
 static void req_plustospace(char *str)
 {
@@ -84,7 +86,7 @@ static int util_read(ApacheRequest *req, const char **rbuf)
 	    return HTTP_REQUEST_ENTITY_TOO_LARGE;
 	}
 
-	*rbuf = ap_pcalloc(r->pool, length + 1); 
+	*rbuf = ap_pcalloc(r->pool, length + 1);
 
 	ap_hard_timeout("[libapreq] util_read", r);
 
@@ -112,7 +114,7 @@ char *ApacheRequest_script_name(ApacheRequest *req)
     char *tmp;
 
     if (r->path_info && *r->path_info) {
-	int path_info_start = ap_find_path_info(r->uri, r->path_info); 
+	int path_info_start = ap_find_path_info(r->uri, r->path_info);
 	tmp = ap_pstrndup(r->pool, r->uri, path_info_start);
     }
     else {
@@ -133,18 +135,18 @@ const char *ApacheRequest_param(ApacheRequest *req, const char *key)
     return ap_table_get(req->parms, key);
 }
 
-static int make_params(void *data, const char *key, const char *val) 
-{                        
-    array_header *arr = (array_header *)data; 
-    *(char **)ap_push_array(arr) = (char *)val; 
-    return 1; 
-} 
+static int make_params(void *data, const char *key, const char *val)
+{
+    array_header *arr = (array_header *)data;
+    *(char **)ap_push_array(arr) = (char *)val;
+    return 1;
+}
 
 array_header *ApacheRequest_params(ApacheRequest *req, const char *key)
 {
     array_header *values = ap_make_array(req->r->pool, 4, sizeof(char *));
     ApacheRequest_parse(req);
-    ap_table_do(make_params, (void*)values, req->parms, key, NULL); 
+    ap_table_do(make_params, (void*)values, req->parms, key, NULL);
     return values;
 }
 
@@ -155,7 +157,7 @@ char *ApacheRequest_params_as_string(ApacheRequest *req, const char *key)
     int i;
 
     for (i=0; i<values->nelts; i++) {
-	retval = ap_pstrcat(req->r->pool, 
+	retval = ap_pstrcat(req->r->pool,
 			    retval ? retval : "",
 			    ((char **)values->elts)[i],
 			    (i == (values->nelts - 1)) ? NULL : ", ",
@@ -193,31 +195,6 @@ ApacheUpload *ApacheUpload_find(ApacheUpload *upload, char *name)
     return NULL;
 }
 
-int ApacheRequest___parse(ApacheRequest *req)
-{
-    request_rec *r = req->r;
-
-    req->parsed = 1;
-
-    if (r->method_number == M_POST) { 
-	const char *ct = ap_table_get(r->headers_in, "Content-type"); 
-	if (ct && *ct == 'a' && strEQ(ct, DEFAULT_ENCTYPE)) {
-	    return ApacheRequest_parse_urlencoded(req); 
-	}
-	else if (ct && *ct == 'm' && strstr(ct, "multipart/form-data")) {
-	   return ApacheRequest_parse_multipart(req); 
-	}
-	else {
-	    ap_log_rerror(REQ_ERROR, 
-			  "[libapreq] unknown content-type: `%s'", ct); 
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-    } 
-    else {
-	return ApacheRequest_parse_urlencoded(req); 
-    }
-}
-
 ApacheRequest *ApacheRequest_new(request_rec *r)
 {
     ApacheRequest *req = (ApacheRequest *)
@@ -228,6 +205,9 @@ ApacheRequest *ApacheRequest_new(request_rec *r)
     req->upload = NULL;
     req->post_max = -1;
     req->disable_uploads = 0;
+    req->upload_hook = NULL;
+    req->hook_data = NULL;
+    req->temp_dir = NULL;
     req->parsed = 0;
     req->r = r;
 
@@ -271,7 +251,7 @@ static char *my_urlword(pool *p, const char **line)
 
 static void split_to_parms(ApacheRequest *req, const char *data)
 {
-    request_rec *r = req->r; 
+    request_rec *r = req->r;
     const char *val;
 
     while (*data && (val = my_urlword(r->pool, &data))) {
@@ -287,17 +267,49 @@ static void split_to_parms(ApacheRequest *req, const char *data)
 
 }
 
+int ApacheRequest___parse(ApacheRequest *req)
+{
+    request_rec *r = req->r;
+    int result;
+
+    if (r->args) {
+        split_to_parms(req, r->args);
+    }
+
+    if (r->method_number == M_POST) {
+	const char *ct = ap_table_get(r->headers_in, "Content-type");
+	if (ct && strncaseEQ(ct, DEFAULT_ENCTYPE, DEFAULT_ENCTYPE_LENGTH)) {
+	    result = ApacheRequest_parse_urlencoded(req);
+	}
+	else if (ct && strncaseEQ(ct, MULTIPART_ENCTYPE, MULTIPART_ENCTYPE_LENGTH)) {
+	   result = ApacheRequest_parse_multipart(req);
+	}
+	else {
+	    ap_log_rerror(REQ_ERROR,
+			  "[libapreq] unknown content-type: `%s'", ct);
+	    result = HTTP_INTERNAL_SERVER_ERROR;
+	}
+    }
+    else {
+	result = ApacheRequest_parse_urlencoded(req);
+    }
+
+    req->parsed = 1;
+    return result;
+
+}
+
 int ApacheRequest_parse_urlencoded(ApacheRequest *req)
 {
-    request_rec *r = req->r; 
+    request_rec *r = req->r;
     int rc = OK;
 
-    if (r->method_number == M_POST) { 
-	const char *data, *type;
+    if (r->method_number == M_POST) {
+	const char *data = NULL, *type;
 
 	type = ap_table_get(r->headers_in, "Content-Type");
 
-	if (!strcaseEQ(type, DEFAULT_ENCTYPE)) {
+	if (!strncaseEQ(type, DEFAULT_ENCTYPE, DEFAULT_ENCTYPE_LENGTH)) {
 	    return DECLINED;
 	}
 	if ((rc = util_read(req, &data)) != OK) {
@@ -308,27 +320,56 @@ int ApacheRequest_parse_urlencoded(ApacheRequest *req)
 	}
     }
 
-    if (r->args) {
-	split_to_parms(req, r->args);
-    }        
-
     return OK;
 }
 
-FILE *ApacheRequest_tmpfile(ApacheRequest *req)
+static void remove_tmpfile(void *data) {
+    ApacheUpload *upload = (ApacheUpload *) data;
+    ApacheRequest *req = upload->req;
+
+    if( ap_pfclose(req->r->pool, upload->fp) )
+	ap_log_rerror(REQ_ERROR,
+		      "[libapreq] close error on '%s'", upload->tempname);
+#ifndef DEBUG
+    if( remove(upload->tempname) )
+	ap_log_rerror(REQ_ERROR,
+		      "[libapreq] remove error on '%s'", upload->tempname);
+#endif
+
+    free(upload->tempname);
+}
+
+FILE *ApacheRequest_tmpfile(ApacheRequest *req, ApacheUpload *upload)
 {
     request_rec *r = req->r;
     FILE *fp;
+    char prefix[] = "apreq";
+    char *name = NULL;
+    int fd = 0; 
+    int tries = 100;
 
-    if (!(fp = tmpfile())) {
-	ap_log_rerror(REQ_ERROR,
-		      "[libapreq] could not create tmpfile()"); 
-    }
-    else {
-	ap_note_cleanups_for_file(r->pool, fp);
+    while (--tries > 0) {
+	if ( (name = tempnam(req->temp_dir, prefix)) == NULL )
+	    continue;
+	fd = ap_popenf(r->pool, name, O_CREAT|O_EXCL|O_RDWR|O_BINARY, 0600);
+	if ( fd >= 0 )
+	    break; /* success */
+	else
+	    free(name);
     }
 
+    if ( tries == 0  || (fp = ap_pfdopen(r->pool, fd, "w+" "b") ) == NULL ) {
+	ap_log_rerror(REQ_ERROR, "[libapreq] could not create/open temp file");
+	if ( fd >= 0 ) { remove(name); free(name); }
+	return NULL;
+    }
+
+    upload->fp = fp;
+    upload->tempname = name;
+    ap_register_cleanup(r->pool, (void *)upload,
+			remove_tmpfile, ap_null_cleanup);
     return fp;
+
 }
 
 int ApacheRequest_parse_multipart(ApacheRequest *req)
@@ -340,11 +381,6 @@ int ApacheRequest_parse_multipart(ApacheRequest *req)
     char *boundary;
     multipart_buffer *mbuff;
     ApacheUpload *upload = NULL;
-
-    if (req->disable_uploads) {
-	ap_log_rerror(REQ_ERROR, "[libapreq] file upload forbidden");
-	return HTTP_FORBIDDEN;
-    }
 
     if (!ct) {
 	ap_log_rerror(REQ_ERROR, "[libapreq] no Content-type header!");
@@ -366,18 +402,27 @@ int ApacheRequest_parse_multipart(ApacheRequest *req)
     }
 
     (void)ap_getword(r->pool, &ct, '=');
-    boundary = ap_getword_conf(r->pool, &ct); 
+    boundary = ap_getword_conf(r->pool, &ct);
 
     if (!(mbuff = multipart_buffer_new(boundary, length, r))) {
 	return DECLINED;
     }
 
     while (!multipart_buffer_eof(mbuff)) {
-	table *header = multipart_buffer_headers(mbuff);	
-	const char *cd, *param=NULL, *filename=NULL, *buff;
-	int blen;
+	table *header = multipart_buffer_headers(mbuff);
+	const char *cd, *param=NULL, *filename=NULL;
+	char buff[FILLUNIT];
+	int blen, wlen;
 
 	if (!header) {
+#ifdef DEBUG
+            ap_log_rerror(REQ_ERROR,
+		      "[libapreq] silently drop remaining '%ld' bytes", r->remaining);
+#endif
+            ap_hard_timeout("[libapreq] parse_multipart", r);
+            while ( ap_get_client_block(r, buff, sizeof(buff)) > 0 )
+                /* wait for more input to ignore */ ;
+            ap_kill_timeout(r);
 	    return OK;
 	}
 
@@ -401,10 +446,17 @@ int ApacheRequest_parse_multipart(ApacheRequest *req)
 		}
 	    }
 	    if (!filename) {
-		char *value = multipart_buffer_read_body(mbuff);
-		ap_table_add(req->parms, param, value);
+	        char *value = multipart_buffer_read_body(mbuff);
+	        ap_table_add(req->parms, param, value);
 		continue;
 	    }
+	    if (!param) continue; /* shouldn't happen, but just in case. */
+
+            if (req->disable_uploads) {
+                ap_log_rerror(REQ_ERROR, "[libapreq] file upload forbidden");
+                return HTTP_FORBIDDEN;
+            }
+
 	    ap_table_add(req->parms, param, filename);
 
 	    if (upload) {
@@ -416,7 +468,7 @@ int ApacheRequest_parse_multipart(ApacheRequest *req)
 		req->upload = upload;
 	    }
 
-	    if (!(upload->fp = ApacheRequest_tmpfile(req))) {
+	    if (! req->upload_hook && ! ApacheRequest_tmpfile(req, upload) ) {
 		return HTTP_INTERNAL_SERVER_ERROR;
 	    }
 
@@ -424,23 +476,31 @@ int ApacheRequest_parse_multipart(ApacheRequest *req)
 	    upload->filename = ap_pstrdup(req->r->pool, filename);
 	    upload->name = ap_pstrdup(req->r->pool, param);
 
-	    while ((buff = multipart_buffer_read(mbuff, 0, &blen))) {
-		/* write the file */
-		upload->size += fwrite(buff, 1, blen, upload->fp); 	
+            /* mozilla empty-file (missing CRLF) hack */
+            fill_buffer(mbuff);
+            if( strEQN(mbuff->buf_begin, mbuff->boundary, 
+                      strlen(mbuff->boundary)) ) {
+                r->remaining -= 2;
+                continue; 
+            }
+
+	    while ((blen = multipart_buffer_read(mbuff, buff, sizeof(buff)))) {
+		if (req->upload_hook != NULL) {
+		    wlen = req->upload_hook(req->hook_data, buff, blen, upload);
+		} else {
+		    wlen = fwrite(buff, 1, blen, upload->fp);
+		}
+		if (wlen != blen) {
+		    return HTTP_INTERNAL_SERVER_ERROR;
+		}
+		upload->size += wlen;
 	    }
 
-	    if (upload->size > 0) {
+	    if (upload->size > 0 && (upload->fp != NULL)) {
 		fseek(upload->fp, 0, 0);
-	    }
-	    else {
-		upload->fp = NULL;
 	    }
 	}
     }
-
-    if (r->args) {
-	split_to_parms(req, r->args);
-    }        
 
     return OK;
 }
@@ -481,7 +541,7 @@ static time_t expire_calc(char *time_str)
     if (*time_str == '-') {
 	is_neg = 1;
 	++time_str;
-    } 
+    }
     else if (*time_str == '+') {
 	++time_str;
     }
@@ -499,7 +559,7 @@ static time_t expire_calc(char *time_str)
     buf[ix] = '\0';
     offset = atoi(buf);
 
-    return time(NULL) + 
+    return time(NULL) +
 	(expire_mult(*time_str) * (is_neg ? (0 - offset) : offset));
 }
 
@@ -519,13 +579,13 @@ char *ApacheUtil_expires(pool *p, char *time_str, int type)
 	return ap_pstrdup(p, time_str);
     }
 
-    tms = gmtime(&when); 
+    tms = gmtime(&when);
     return ap_psprintf(p,
-		       "%s, %.2d%c%s%c%.2d %.2d:%.2d:%.2d GMT", 
-		       ap_day_snames[tms->tm_wday], 
+		       "%s, %.2d%c%s%c%.2d %.2d:%.2d:%.2d GMT",
+		       ap_day_snames[tms->tm_wday],
 		       tms->tm_mday, sep, ap_month_snames[tms->tm_mon], sep,
-		       tms->tm_year + 1900, 
-		       tms->tm_hour, tms->tm_min, tms->tm_sec); 
+		       tms->tm_year + 1900,
+		       tms->tm_hour, tms->tm_min, tms->tm_sec);
 }
 
 char *ApacheRequest_expires(ApacheRequest *req, char *time_str)

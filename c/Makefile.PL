@@ -12,7 +12,7 @@ else {
 
     use Cwd;
     my $pwd = fastcwd;
-    my @objs = qw(apache_request.o apache_cookie.o multipart_buffer.o);
+    my @objs = qw(apache_request.o apache_cookie.o apache_multipart_buffer.o);
     $MY_LD_RUN_PATH = "$Config{installsitearch}/auto/libapreq:$pwd"; 
 
     WriteMakefile(
@@ -54,16 +54,22 @@ EOF
 sub MY::post_initialize { 
     my $self = shift; 
     my $to   = '$(INST_ARCHLIB)/' . "auto/libapreq/include"; 
-    for (qw(apache_request apache_cookie multipart_buffer)) {
+    for (qw(apache_request apache_cookie apache_multipart_buffer)) {
 	$self->{PM}->{"$_.h"} = "$to/$_.h";
     }
     '';
 } 
 
 sub win32_setup {
-    no_MY();
-    push @mm_args, SKIP => [qw(dynamic_bs dynamic_lib)];
-    WriteMakefile(@mm_args);
+  my $myVERSION = MM->parse_version('../Request/Request.pm');
+  $myVERSION =~ s/(\d\d)(\d\d)$/$1_$2/;
+  my @objs = qw(apache_request.o apache_cookie.o apache_multipart_buffer.o);
+  WriteMakefile('NAME' => 'libapreq',
+		'TYPEMAPS' => [ "$ENV{MP_INC}/typemap" ],
+		'VERSION' => $myVERSION,
+		'OBJECT' => "@objs",
+                'INC'  => qq{ -I"$ENV{AP_INC}" -I"$ENV{AP_INC}/../os/win32" -I"$ENV{MP_INC}" },
+  	       ); 
 }
 
 sub no_MY {

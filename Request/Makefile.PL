@@ -11,8 +11,8 @@ my @mm_args = (
 	       );
 
 if ($Is_Win32) {
-    win32_setup();
-    xsubpp("Request");
+    win32_setup(@mm_args);
+#    xsubpp("Request");
 }
 else {
     require Apache::src;
@@ -28,17 +28,20 @@ else {
 	  'INC'	=> "-I../c ". $src->inc,
 	  'TYPEMAPS'  => $src->typemaps,
           'LIBS' => "-L$root -lapreq",
+	  'dynamic_lib' => {
+	  	'OTHERLDFLAGS' => $src->otherldflags,
+	  },
     );
     unlink "$root/libapreq.a";
 }
 
 sub win32_setup {
-    *MY::dynamic = sub {
-	my $self = shift;
-	my $string = $self->MM::dynamic;
-	$string =~ s/(Makefile\s+).*/$1/g;
-	$string;
-    };
-    push @mm_args, SKIP => [qw(dynamic_bs dynamic_lib)];
-    WriteMakefile(@mm_args);
+  my @mm_args = @_;
+  WriteMakefile(
+		@mm_args,
+		'TYPEMAPS' => [ "$ENV{MP_INC}/typemap" ],
+                'INC' => qq{ -I../c -I"$ENV{AP_INC}" -I"$ENV{AP_INC}/../os/win32" -I"$ENV{MP_INC}" },
+		'LIBS' => qq{ -L"$ENV{MP_LIB}" -lmod_perl -L"$ENV{APREQ_LIB}" -llibapreq -L"$ENV{AP_LIB}" -lApacheCore },
+                'OBJECT' => 'Request.o',
+	       );
 }

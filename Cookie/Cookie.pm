@@ -6,7 +6,7 @@ use Apache::Table ();
 
 {
     no strict;
-    $VERSION = '0.01';
+    $VERSION = '1.0';
     __PACKAGE__->mod_perl::boot($VERSION);
 }
 
@@ -20,6 +20,7 @@ Apache::Cookie - HTTP Cookies Class
 =head1 SYNOPSIS
 
     use Apache::Cookie ();
+    my $r = Apache->request;
     my $cookie = Apache::Cookie->new($r, ...);
 
 =head1 DESCRIPTION
@@ -30,13 +31,14 @@ module.
 
 =head1 METHODS
 
-This interface is identical the to I<CGI::Cookie> interface with one 
-exception noted below.  Refer the to I<CGI::Cookie> documentation while
-these docs are "under construction."
+I<Apache::Cookie> does not export any symbols to the caller's namespace.
+Except for the request object passed to C<Apache::Cookie::new>, the OO
+interface is identical to I<CGI::Cookie>.  Please consult the L<CGI::Cookie>
+documentation for more details.
 
 =over 4
 
-=item new
+=head2 new
 
 Just like CGI::Cookie::new, but requires an I<Apache> request object:
 
@@ -45,18 +47,18 @@ Just like CGI::Cookie::new, but requires an I<Apache> request object:
                              -value   =>  'bar', 
                              -expires =>  '+3M', 
                              -domain  =>  '.capricorn.com', 
-                             -path    =>  '/cgi-bin/database' 
+                             -path    =>  '/cgi-bin/database',
                              -secure  =>  1 
                             ); 
 
-=item bake
+=head2 bake
 
 Put cookie in the oven to bake. 
 (Add a I<Set-Cookie> header to the outgoing headers table.) 
 
     $cookie->bake;
 
-=item parse
+=head2 parse
 
 This method parses the given string if present, otherwise, the incoming 
 I<Cookie> header:
@@ -67,7 +69,7 @@ I<Cookie> header:
 
     my %cookies = $cookie->parse($cookie_string);
 
-=item fetch
+=head2 fetch
 
 Fetch and parse the incoming I<Cookie> header:
 
@@ -75,14 +77,14 @@ Fetch and parse the incoming I<Cookie> header:
 
     my %cookies = Apache::Cookie->fetch;
 
-=item as_string
+=head2 as_string
 
 Format the cookie object as a string:
 
  #same as $cookie->bake
  $r->err_headers_out->add("Set-Cookie" => $cookie->as_string);
 
-=item name
+=head2 name
 
 Get or set the name of the cookie:
 
@@ -90,38 +92,38 @@ Get or set the name of the cookie:
 
  $cookie->name("Foo");
 
-=item value
+=head2 value
 
 Get or set the values of the cookie:
 
- my $value = $cookie->value; 
+ my $value = $cookie->value;
  my @values = $cookie->value;
 
  $cookie->value("string");
  $cookie->value(\@array);
 
-=item domain
+=head2 domain
 
 Get or set the domain for the cookie:
 
  my $domain = $cookie->domain;
  $cookie->domain(".cp.net");
 
-=item path
+=head2 path
 
 Get or set the path for the cookie:
 
  my $path = $cookie->path;
  $cookie->path("/");
 
-=item expires
+=head2 expires
 
 Get or set the expire time for the cookie:
 
  my $expires = $cookie->expires;
  $cookie->expires("+3h");
 
-=item secure
+=head2 secure
 
 Get or set the secure flag for the cookie:
 
@@ -130,10 +132,22 @@ Get or set the secure flag for the cookie:
 
 =back
 
+=head1 BUGS
+
+=over 4
+
+=item RFC 2964-5 are not fully implemented.
+
+=item C<value> should also accept a hash ref as argument.
+
+=item Reportedly does not run (linking problem?) on Apple's OSX
+
+=back
+
 =head1 SEE ALSO
 
-Apache(3), Apache::Request(3)
+Apache(3), Apache::Request(3), CGI::Cookie(3)
 
 =head1 AUTHOR
 
-Doug MacEachern
+Doug MacEachern, updated for v1.0 by Joe Schaefer

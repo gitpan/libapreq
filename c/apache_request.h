@@ -10,6 +10,28 @@
 #include "http_protocol.h"
 #include "util_script.h"
 
+#ifdef  SFIO
+#include "sfio.h"
+
+/* sfio 2000 changed _stdopen to _stdfdopen */
+#if SFIO_VERSION >= 20000101L
+#define _stdopen _stdfdopen
+#endif
+
+extern Sfio_t*  _stdopen _ARG_((int, const char*)); /*1999*/
+
+#undef  FILE
+#define FILE 			Sfio_t
+#undef  fwrite
+#define fwrite(p,s,n,f)		sfwrite((f),(p),(s)*(n))
+#undef  fseek
+#define fseek(f,a,b)		sfseek((f),(a),(b))
+#undef  ap_pfdopen
+#define ap_pfdopen(p,q,r) 	_stdopen((q),(r))
+#undef  ap_pfclose
+#define ap_pfclose(p,q)		sfclose(q)
+#endif /*SFIO*/
+
 typedef struct ApacheUpload ApacheUpload;
 
 typedef struct {
@@ -19,6 +41,9 @@ typedef struct {
     int parsed;
     int post_max;
     int disable_uploads;
+    int (*upload_hook)(void *ptr, char *buf, int len, ApacheUpload *upload);
+    void *hook_data;
+    char* temp_dir;
     request_rec *r;
 } ApacheRequest;
 
@@ -26,6 +51,7 @@ struct ApacheUpload {
     ApacheUpload *next;
     char *filename;
     char *name;
+    char *tempname;
     table *info;
     FILE *fp;
     long size;
@@ -36,13 +62,25 @@ struct ApacheUpload {
 #define strEQ(s1,s2) (!strcmp(s1,s2))
 #endif
 
+#ifndef strEQN
+#define strEQN(s1,s2,n) (!strncmp(s1,s2,n))
+#endif
+
 #ifndef strcaseEQ
 #define strcaseEQ(s1,s2) (!strcasecmp(s1,s2))
+#endif
+
+#ifndef strncaseEQ
+#define strncaseEQ(s1,s2,n) (!strncasecmp(s1,s2,n))
 #endif
 
 #define DEFAULT_TABLE_NELTS 10
 
 #define DEFAULT_ENCTYPE "application/x-www-form-urlencoded"
+#define DEFAULT_ENCTYPE_LENGTH 33
+
+#define MULTIPART_ENCTYPE "multipart/form-data"
+#define MULTIPART_ENCTYPE_LENGTH 19
 
 #ifdef  __cplusplus
  extern "C" {
@@ -60,18 +98,24 @@ int ApacheRequest___parse(ApacheRequest *req);
 #define ApacheRequest_parse(req) \
     (req->status = req->parsed ? req->status : ApacheRequest___parse(req)) 
 
-FILE *ApacheRequest_tmpfile(ApacheRequest *req);
+FILE *ApacheRequest_tmpfile(ApacheRequest *req, ApacheUpload *upload);
 ApacheUpload *ApacheUpload_new(ApacheRequest *req);
 ApacheUpload *ApacheUpload_find(ApacheUpload *upload, char *name);
 
 #define ApacheRequest_upload(req) \
     ((req->parsed || (ApacheRequest_parse(req) == OK)) ? req->upload : NULL)
 
+#define ApacheUpload_FILE(upload) (upload->fp)
+
+#define ApacheUpload_size(upload) (upload->size)
+
 #define ApacheUpload_info(upload, key) \
 ap_table_get(upload->info, key)
 
 #define ApacheUpload_type(upload) \
 ApacheUpload_info(upload, "Content-Type")
+
+#define ApacheRequest_set_post_max(req, max) (req->post_max = max)
 
 char *ApacheUtil_expires(pool *p, char *time_str, int type);
 #define EXPIRES_HTTP   1
@@ -90,4 +134,4 @@ char *ApacheRequest_expires(ApacheRequest *req, char *time_str);
 #define REQ_DEBUG(a)
 #endif
 
-#endif // _APACHE_REQUEST_H
+#endif /* _APACHE_REQUEST_H */
