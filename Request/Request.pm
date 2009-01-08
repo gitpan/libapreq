@@ -22,7 +22,7 @@ use Apache::Table ();
 
 {
     no strict;
-    $VERSION = '1.33';
+    $VERSION = '1.34';
     @ISA = qw(Apache);
     __PACKAGE__->mod_perl::boot($VERSION);
 }
@@ -413,6 +413,10 @@ spool file. Check your system's link(2) manpage for details.
 =head1 SEE ALSO
 
 libapreq(3), Apache::Table(3)
+
+=head1 AUTHOR
+
+libapreq developers can be reached at apreq-dev (about) httpd.apache.org
 
 =head1 CREDITS
 

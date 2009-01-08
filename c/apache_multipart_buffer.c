@@ -52,7 +52,7 @@ void* my_memstr(char* haystack, int haystacklen, const char* needle,
 */
 int fill_buffer(multipart_buffer *self)
 {
-    int bytes_to_read, actual_read = 0;
+    int bytes_to_read, actual_read = 0, total_read = 0;
 
     /* shift the existing data if necessary */
     if(self->bytes_in_buffer > 0 && self->buf_begin != self->buffer)
@@ -70,18 +70,24 @@ int fill_buffer(multipart_buffer *self)
     }
 
     /* read the required number of bytes */
-    if(bytes_to_read > 0) {
+    while(bytes_to_read > 0) {
 	char *buf = self->buffer + self->bytes_in_buffer;
 	ap_hard_timeout("[libapreq] multipart_buffer.c:fill_buffer", self->r);
 	actual_read = ap_get_client_block(self->r, buf, bytes_to_read);
 	ap_kill_timeout(self->r);
 
 	/* update the buffer length */
-	if(actual_read > 0)
-	  self->bytes_in_buffer += actual_read;
+	if(actual_read > 0) {
+            self->bytes_in_buffer += actual_read;
+            bytes_to_read -= actual_read;
+            total_read += actual_read;
+        }
+        else {
+            break;
+        }
     }
 
-    return actual_read;
+    return total_read;
 }
 
 /*
@@ -267,16 +273,24 @@ int multipart_buffer_read(multipart_buffer *self, char *buf, int bytes)
     return len;
 }
 
-/*
-  XXX: this is horrible memory-usage-wise, but we only expect
-  to do this on small pieces of form data.
-*/
 char *multipart_buffer_read_body(multipart_buffer *self)
 {
     char buf[FILLUNIT], *out = "";
+    size_t nalloc = 1, cur_len = 0;
 
-    while(multipart_buffer_read(self, buf, sizeof(buf)))
-	out = ap_pstrcat(self->r->pool, out, buf, NULL);
+    while(multipart_buffer_read(self, buf, sizeof(buf))) {
+        size_t len = strlen(buf);
+        if (len + cur_len + 1 > nalloc) {
+            char *tmp;
+            nalloc = 2 * (nalloc + len + 1);
+            tmp = ap_palloc(self->r->pool, nalloc);
+            strcpy(tmp, out);
+            out = tmp;
+        }
+
+        strcpy(out + cur_len, buf);
+        cur_len += len;
+    }
 
 #ifdef DEBUG
     ap_log_rerror(MPB_ERROR, "multipart_buffer_read_body: '%s'", out);
